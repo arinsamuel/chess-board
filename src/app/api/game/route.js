@@ -3,7 +3,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import Game from "@/models/Game";
 import mongoose from "mongoose";
 
-// ডাটাবেজ থেকে সর্বশেষ গেম লোড করা (GET)
+// get last load data 
 export async function GET() {
   console.log("API: GET /api/game request received");
   try {
@@ -16,7 +16,7 @@ export async function GET() {
   }
 }
 
-// নতুন চাল বা গেম সেভ করা (POST)
+// game saved post 
 export async function POST(req) {
   console.log("API: POST /api/game request received");
   try {

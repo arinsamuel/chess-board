@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Chess } from "chess.js";
 
-// ♟️ Unique Modern & Stylish Chess Piece Assets (Different from Chess.com)
+// ♟️ Stylish Unique Neo Chess Pieces
 const PIECE_IMAGES = {
   w: {
     p: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wp.png",
@@ -28,6 +28,7 @@ export default function ChessBoard() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedSquare, setSelectedSquare] = useState(null);
+  const [possibleMoves, setPossibleMoves] = useState([]); // 🎯 Stores suggested target squares
 
   const gameIdRef = useRef(null);
   const pendingSaveRef = useRef(Promise.resolve());
@@ -84,6 +85,13 @@ export default function ChessBoard() {
     });
   };
 
+  // Helper function to calculate legal moves for a selected piece
+  function highlightPossibleMoves(square) {
+    const moves = game.moves({ square: square, verbose: true });
+    const targetSquares = moves.map((m) => m.to);
+    setPossibleMoves(targetSquares);
+  }
+
   function handleMove(sourceSquare, targetSquare) {
     try {
       const gameCopy = new Chess(game.fen());
@@ -100,6 +108,7 @@ export default function ChessBoard() {
       setGame(gameCopy);
       setHistory(newHistory);
       setSelectedSquare(null);
+      setPossibleMoves([]); // Reset suggestions
 
       saveGameToBackend(
         gameCopy.fen(),
@@ -113,6 +122,7 @@ export default function ChessBoard() {
       return true;
     } catch (error) {
       setSelectedSquare(null);
+      setPossibleMoves([]);
       return false;
     }
   }
@@ -120,23 +130,40 @@ export default function ChessBoard() {
   function handleSquareClick(square) {
     if (game.isGameOver()) return;
 
-    if (!selectedSquare) {
-      const piece = game.get(square);
-      if (piece && piece.color === game.turn()) {
-        setSelectedSquare(square);
-      }
-    } else {
+    const piece = game.get(square);
+
+    // If clicking on own piece whose turn it is
+    if (piece && piece.color === game.turn()) {
       if (selectedSquare === square) {
+        // Deselect if clicking same piece twice
         setSelectedSquare(null);
+        setPossibleMoves([]);
       } else {
-        handleMove(selectedSquare, square);
+        // Select piece and show move suggestions
+        setSelectedSquare(square);
+        highlightPossibleMoves(square);
+      }
+      return;
+    }
+
+    // If a piece is already selected and player clicks a target square
+    if (selectedSquare) {
+      const moved = handleMove(selectedSquare, square);
+      if (!moved) {
+        setSelectedSquare(null);
+        setPossibleMoves([]);
       }
     }
   }
 
   function onDragStart(e, square) {
     if (game.isGameOver()) return;
-    e.dataTransfer.setData("text/plain", square);
+    const piece = game.get(square);
+    if (piece && piece.color === game.turn()) {
+      setSelectedSquare(square);
+      highlightPossibleMoves(square);
+      e.dataTransfer.setData("text/plain", square);
+    }
   }
 
   function onDragOver(e) {
@@ -157,6 +184,7 @@ export default function ChessBoard() {
     setGame(newGame);
     setHistory([]);
     setSelectedSquare(null);
+    setPossibleMoves([]);
     gameIdRef.current = null;
     pendingSaveRef.current = Promise.resolve();
 
@@ -189,6 +217,7 @@ export default function ChessBoard() {
   const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
   const inCheck = game.inCheck() && !game.isGameOver();
   const isCheckmate = game.isCheckmate();
+  const currentTurn = game.turn(); // 'w' or 'b'
 
   return (
     <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-8 w-full max-w-5xl px-4 py-8 bg-slate-950 min-h-screen text-slate-100 relative">
@@ -202,7 +231,7 @@ export default function ChessBoard() {
               CHECKMATE!
             </h2>
             <p className="text-slate-300 text-lg font-medium">
-              {game.turn() === "w" ? "Black" : "White"} Wins the Game! 🎉
+              {currentTurn === "w" ? "Black" : "White"} Wins the Game! 🎉
             </p>
             <button
               onClick={resetGame}
@@ -217,24 +246,28 @@ export default function ChessBoard() {
       {/* Left Section: Board & Status */}
       <div className="flex flex-col items-center gap-5">
         
-        {/* Status Bar */}
-        <div className={`w-full flex justify-between items-center bg-slate-900/90 border px-5 py-3 rounded-2xl transition-all duration-300 backdrop-blur-md ${
+        {/* 🌟 ENHANCED CLEAR TURN INDICATOR BANNER */}
+        <div className={`w-full flex justify-between items-center px-6 py-3.5 rounded-2xl transition-all duration-300 backdrop-blur-md border ${
           inCheck 
-            ? "border-red-500/80 shadow-[0_0_25px_rgba(239,68,68,0.4)] bg-red-950/30" 
-            : "border-pink-500/30 shadow-[0_0_20px_rgba(236,72,153,0.15)]"
+            ? "border-red-500 bg-red-950/40 shadow-[0_0_25px_rgba(239,68,68,0.5)]" 
+            : currentTurn === "w"
+            ? "border-pink-300/60 bg-slate-900/90 shadow-[0_0_20px_rgba(244,114,182,0.25)]"
+            : "border-purple-600/80 bg-purple-950/40 shadow-[0_0_20px_rgba(147,51,234,0.3)]"
         }`}>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3.5">
+            {/* Glowing Turn Badge */}
             <span
-              className={`w-3.5 h-3.5 rounded-full transition-all duration-300 ${
-                game.turn() === "w" 
-                  ? "bg-pink-300 shadow-[0_0_12px_#f472b6]" 
-                  : "bg-slate-950 border border-pink-500 shadow-[0_0_8px_#ec4899]"
+              className={`px-3 py-1 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${
+                currentTurn === "w" 
+                  ? "bg-slate-100 text-slate-950 shadow-[0_0_15px_#ffffff]" 
+                  : "bg-purple-900 text-pink-300 border border-pink-500/50 shadow-[0_0_15px_#a855f7]"
               }`}
-            />
-            <span className="font-bold tracking-wide text-slate-200">
-              {game.isGameOver()
-                ? "Game Over"
-                : `${game.turn() === "w" ? "White" : "Black"}'s Turn`}
+            >
+              {currentTurn === "w" ? "⚪ WHITE" : "⚫ BLACK"}
+            </span>
+
+            <span className="font-extrabold text-lg tracking-wide text-slate-100">
+              {game.isGameOver() ? "Game Over" : "Turn"}
             </span>
           </div>
 
@@ -262,7 +295,8 @@ export default function ChessBoard() {
                 const squareName = `${files[colIndex]}${8 - rowIndex}`;
                 const isDark = (rowIndex + colIndex) % 2 === 1;
                 const isSelected = selectedSquare === squareName;
-                const isKingInCheck = inCheck && square?.type === "k" && square?.color === game.turn();
+                const isPossibleMove = possibleMoves.includes(squareName);
+                const isKingInCheck = inCheck && square?.type === "k" && square?.color === currentTurn;
 
                 return (
                   <div
@@ -274,7 +308,7 @@ export default function ChessBoard() {
                       isKingInCheck
                         ? "bg-red-600/80 animate-pulse"
                         : isDark ? "bg-[#9d174d]" : "bg-[#fbcfe8]"
-                    } ${isSelected ? "ring-4 ring-amber-300 ring-inset z-10 bg-pink-400/50" : ""}`}
+                    } ${isSelected ? "ring-4 ring-yellow-400 ring-inset z-10 bg-pink-400/50" : ""}`}
                   >
                     {/* Rank & File Labels */}
                     {colIndex === 0 && (
@@ -288,14 +322,27 @@ export default function ChessBoard() {
                       </span>
                     )}
 
-                    {/* ♟️ Stylish Unique Pieces with Custom Glow */}
+                    {/* 🎯 MOVE SUGGESTION DOTS & CAPTURE HIGHLIGHTS */}
+                    {isPossibleMove && (
+                      <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+                        {square ? (
+                          // Target Square has opponent piece (Capture Ring)
+                          <div className="w-full h-full border-4 border-yellow-300/80 rounded-full animate-pulse bg-yellow-400/20" />
+                        ) : (
+                          // Empty Target Square (Glowing Dot)
+                          <div className="w-4 h-4 sm:w-5 sm:h-5 bg-yellow-300 rounded-full shadow-[0_0_12px_#fde047] opacity-90" />
+                        )}
+                      </div>
+                    )}
+
+                    {/* ♟️ Chess Pieces */}
                     {square && (
                       <img
                         src={PIECE_IMAGES[square.color][square.type]}
                         alt={`${square.color}${square.type}`}
-                        draggable={square.color === game.turn() && !game.isGameOver()}
+                        draggable={square.color === currentTurn && !game.isGameOver()}
                         onDragStart={(e) => onDragStart(e, squareName)}
-                        className={`w-[85%] h-[85%] object-contain transform transition-all duration-200 hover:scale-115 active:scale-125 ${
+                        className={`w-[85%] h-[85%] object-contain transform transition-all duration-200 hover:scale-115 active:scale-125 z-10 ${
                           square.color === "w"
                             ? "filter drop-shadow-[0_4px_8px_rgba(255,255,255,0.75)] brightness-110"
                             : "filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.9)] brightness-90"
