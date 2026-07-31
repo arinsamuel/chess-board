@@ -1,14 +1,33 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Chessboard } from "react-chessboard";
 import { Chess } from "chess.js";
+
+// ♟️ ১০০% ওয়ার্কিং হাই-রেজুলেশন SVG Chess Piece URLs (Fix for missing Knight image)
+const PIECE_IMAGES = {
+  w: {
+    p: "https://chessboardjs.com/img/chesspieces/wikipedia/wP.png",
+    r: "https://chessboardjs.com/img/chesspieces/wikipedia/wR.png",
+    n: "https://chessboardjs.com/img/chesspieces/wikipedia/wN.png",
+    b: "https://chessboardjs.com/img/chesspieces/wikipedia/wB.png",
+    q: "https://chessboardjs.com/img/chesspieces/wikipedia/wQ.png",
+    k: "https://chessboardjs.com/img/chesspieces/wikipedia/wK.png",
+  },
+  b: {
+    p: "https://chessboardjs.com/img/chesspieces/wikipedia/bP.png",
+    r: "https://chessboardjs.com/img/chesspieces/wikipedia/bR.png",
+    n: "https://chessboardjs.com/img/chesspieces/wikipedia/bN.png",
+    b: "https://chessboardjs.com/img/chesspieces/wikipedia/bB.png",
+    q: "https://chessboardjs.com/img/chesspieces/wikipedia/bQ.png",
+    k: "https://chessboardjs.com/img/chesspieces/wikipedia/bK.png",
+  },
+};
 
 export default function ChessBoard() {
   const [game, setGame] = useState(() => new Chess());
-  const [gameFen, setGameFen] = useState(() => new Chess().fen());
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedSquare, setSelectedSquare] = useState(null);
 
   const gameIdRef = useRef(null);
   const pendingSaveRef = useRef(Promise.resolve());
@@ -21,7 +40,6 @@ export default function ChessBoard() {
         if (data.success && data.game) {
           const loadedGame = new Chess(data.game.fen);
           setGame(loadedGame);
-          setGameFen(data.game.fen);
           setHistory(data.game.history || []);
           gameIdRef.current = data.game._id;
         }
@@ -34,7 +52,6 @@ export default function ChessBoard() {
     fetchSavedGame();
   }, []);
 
-  // 2. Perform background database synchronization in a queue to prevent latency issues or duplicate games
   const saveGameToBackend = (fen, updatedHistory, isGameOver, turn, inCheck, inCheckmate) => {
     let winner = null;
     if (inCheckmate) {
@@ -57,8 +74,6 @@ export default function ChessBoard() {
           body: JSON.stringify(bodyPayload),
         });
 
-        console.log("Backend API response status:", res.status);
-
         const data = await res.json();
         if (data.success && data.game) {
           gameIdRef.current = data.game._id;
@@ -69,39 +84,25 @@ export default function ChessBoard() {
     });
   };
 
-  // 💡 ড্রপ হ্যান্ডলার
-  function onPieceDrop(sourceSquare, targetSquare) {
-    console.log("1. Drop attempted from:", sourceSquare, "to:", targetSquare);
-    const currentFen = game.fen();
-    console.log("Current FEN before move:", currentFen);
-
+  function handleMove(sourceSquare, targetSquare) {
     try {
-      const gameCopy = new Chess(currentFen);
-      
+      const gameCopy = new Chess(game.fen());
       const move = gameCopy.move({
         from: sourceSquare,
         to: targetSquare,
         promotion: "q",
       });
 
-      console.log("Move result:", move);
+      if (move === null) return false;
 
-      if (move === null) {
-        console.error("2. Move validation failed: Move returned null");
-        return false;
-      }
-
-      const newFen = gameCopy.fen();
       const newHistory = [...history, move.san];
 
-      console.log("3. Move successful! Updated FEN:", newFen);
-
       setGame(gameCopy);
-      setGameFen(newFen);
       setHistory(newHistory);
+      setSelectedSquare(null);
 
       saveGameToBackend(
-        newFen,
+        gameCopy.fen(),
         newHistory,
         gameCopy.isGameOver(),
         gameCopy.turn(),
@@ -111,16 +112,51 @@ export default function ChessBoard() {
 
       return true;
     } catch (error) {
-      console.error("2. Move validation failed:", error);
+      setSelectedSquare(null);
       return false;
+    }
+  }
+
+  function handleSquareClick(square) {
+    if (game.isGameOver()) return;
+
+    if (!selectedSquare) {
+      const piece = game.get(square);
+      if (piece && piece.color === game.turn()) {
+        setSelectedSquare(square);
+      }
+    } else {
+      if (selectedSquare === square) {
+        setSelectedSquare(null);
+      } else {
+        handleMove(selectedSquare, square);
+      }
+    }
+  }
+
+  function onDragStart(e, square) {
+    if (game.isGameOver()) return;
+    e.dataTransfer.setData("text/plain", square);
+  }
+
+  function onDragOver(e) {
+    e.preventDefault();
+  }
+
+  function onDrop(e, targetSquare) {
+    e.preventDefault();
+    if (game.isGameOver()) return;
+    const sourceSquare = e.dataTransfer.getData("text/plain");
+    if (sourceSquare) {
+      handleMove(sourceSquare, targetSquare);
     }
   }
 
   function resetGame() {
     const newGame = new Chess();
     setGame(newGame);
-    setGameFen(newGame.fen());
     setHistory([]);
+    setSelectedSquare(null);
     gameIdRef.current = null;
     pendingSaveRef.current = Promise.resolve();
 
@@ -141,73 +177,158 @@ export default function ChessBoard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px] w-full">
-        <div className="text-indigo-400 font-semibold animate-pulse text-lg">
-          Loading Saved Game State...
+      <div className="flex items-center justify-center min-h-[400px] w-full bg-slate-950">
+        <div className="text-pink-400 font-semibold animate-pulse text-lg tracking-wide">
+          Loading Custom Chess Board...
         </div>
       </div>
     );
   }
 
+  const board = game.board();
+  const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
+  const inCheck = game.inCheck() && !game.isGameOver();
+  const isCheckmate = game.isCheckmate();
+
   return (
-    <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-8 w-full max-w-5xl px-4 py-8">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-full flex justify-between items-center bg-slate-800/80 border border-slate-700 px-4 py-2.5 rounded-xl text-sm text-white shadow-md">
-          <div className="flex items-center gap-2">
+    <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-8 w-full max-w-5xl px-4 py-8 bg-slate-950 min-h-screen text-slate-100 relative">
+      
+      {/* 🏆 CHECKMATE POPUP OVERLAY ANIMATION */}
+      {isCheckmate && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
+          <div className="bg-slate-900 border-2 border-pink-500 rounded-3xl p-8 max-w-md w-full text-center shadow-[0_0_50px_rgba(236,72,153,0.5)] flex flex-col items-center gap-4 animate-bounce-short">
+            <div className="text-6xl animate-pulse">👑</div>
+            <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-rose-500 tracking-wider">
+              CHECKMATE!
+            </h2>
+            <p className="text-slate-300 text-lg font-medium">
+              {game.turn() === "w" ? "Black" : "White"} Wins the Game! 🎉
+            </p>
+            <button
+              onClick={resetGame}
+              className="mt-2 w-full py-3.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(225,29,72,0.5)] active:scale-95 cursor-pointer"
+            >
+              Play Again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Left Section: Board & Status */}
+      <div className="flex flex-col items-center gap-5">
+        
+        {/* Status Bar */}
+        <div className={`w-full flex justify-between items-center bg-slate-900/90 border px-5 py-3 rounded-2xl transition-all duration-300 backdrop-blur-md ${
+          inCheck 
+            ? "border-red-500/80 shadow-[0_0_25px_rgba(239,68,68,0.4)] bg-red-950/30" 
+            : "border-pink-500/30 shadow-[0_0_20px_rgba(236,72,153,0.15)]"
+        }`}>
+          <div className="flex items-center gap-3">
             <span
-              className={`w-3 h-3 rounded-full ${
-                game.turn() === "w" ? "bg-white shadow-[0_0_8px_#fff]" : "bg-slate-900 border border-slate-500"
+              className={`w-3.5 h-3.5 rounded-full transition-all duration-300 ${
+                game.turn() === "w" 
+                  ? "bg-pink-300 shadow-[0_0_12px_#f472b6]" 
+                  : "bg-slate-950 border border-pink-500 shadow-[0_0_8px_#ec4899]"
               }`}
             />
-            <span className="font-semibold text-slate-200">
+            <span className="font-bold tracking-wide text-slate-200">
               {game.isGameOver()
                 ? "Game Over"
                 : `${game.turn() === "w" ? "White" : "Black"}'s Turn`}
             </span>
           </div>
 
-          {game.inCheck() && !game.isGameOver() && (
-            <span className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-xs px-2.5 py-1 rounded-full font-bold animate-pulse">
-              CHECK
+          {/* CHECK ALERT ANIMATION */}
+          {inCheck && (
+            <span className="bg-red-500/20 text-red-400 border border-red-500/80 text-xs px-3.5 py-1 rounded-full font-extrabold animate-ping tracking-wider">
+              🚨 CHECK!
             </span>
           )}
-          {game.isCheckmate() && (
-            <span className="bg-red-500/20 text-red-400 border border-red-500/40 text-xs px-2.5 py-1 rounded-full font-bold">
+          {isCheckmate && (
+            <span className="bg-rose-600/30 text-rose-300 border border-rose-500 text-xs px-3 py-1 rounded-full font-extrabold tracking-wider">
               CHECKMATE
             </span>
           )}
         </div>
 
-        {/* Board Wrapper - pointer-events সমস্যার সমাধান */}
-        <div className="w-[420px] sm:w-[480px] max-w-[90vw] aspect-square rounded-2xl overflow-hidden shadow-2xl border border-slate-700 p-2 bg-slate-800 touch-none">
-          <Chessboard
-            key={gameFen}
-            position={gameFen}
-            onPieceDrop={onPieceDrop}
-            boardWidth={460}
-            customDarkSquareStyle={{ backgroundColor: "#779952" }}
-            customLightSquareStyle={{ backgroundColor: "#edeed1" }}
-            arePiecesDraggable={true}
-            animationDuration={200}
-          />
+        {/* 🎀 Pink Chessboard with CHECK SHAKE ANIMATION */}
+        <div className={`w-[420px] sm:w-[480px] max-w-[90vw] aspect-square rounded-3xl overflow-hidden p-2 bg-slate-900 border-4 transition-all duration-300 ${
+          inCheck 
+            ? "border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.6)] animate-pulse" 
+            : "border-pink-500/40 shadow-[0_10px_40px_rgba(236,72,153,0.3)]"
+        }`}>
+          <div className="grid grid-cols-8 grid-rows-8 w-full h-full rounded-2xl overflow-hidden border border-pink-900">
+            {board.map((row, rowIndex) =>
+              row.map((square, colIndex) => {
+                const squareName = `${files[colIndex]}${8 - rowIndex}`;
+                const isDark = (rowIndex + colIndex) % 2 === 1;
+                const isSelected = selectedSquare === squareName;
+                const isKingInCheck = inCheck && square?.type === "k" && square?.color === game.turn();
+
+                return (
+                  <div
+                    key={squareName}
+                    onClick={() => handleSquareClick(squareName)}
+                    onDragOver={onDragOver}
+                    onDrop={(e) => onDrop(e, squareName)}
+                    className={`relative flex items-center justify-center select-none cursor-pointer transition-colors duration-150 ${
+                      isKingInCheck
+                        ? "bg-red-600/80 animate-bounce" /* 🚨 King Check Highlight Animation */
+                        : isDark ? "bg-[#9d174d]" : "bg-[#fbcfe8]"
+                    } ${isSelected ? "ring-4 ring-amber-300 ring-inset z-10 bg-pink-400/50" : ""}`}
+                  >
+                    {/* Rank & File Labels */}
+                    {colIndex === 0 && (
+                      <span className={`absolute top-0.5 left-1 text-[10px] font-extrabold ${isDark ? "text-pink-200/70" : "text-pink-950/70"}`}>
+                        {8 - rowIndex}
+                      </span>
+                    )}
+                    {rowIndex === 7 && (
+                      <span className={`absolute bottom-0.5 right-1 text-[10px] font-extrabold ${isDark ? "text-pink-200/70" : "text-pink-950/70"}`}>
+                        {files[colIndex]}
+                      </span>
+                    )}
+
+                    {/* ♟️ Fixed HD Chess Piece Images */}
+                    {square && (
+                      <img
+                        src={PIECE_IMAGES[square.color][square.type]}
+                        alt={`${square.color}${square.type}`}
+                        draggable={square.color === game.turn() && !game.isGameOver()}
+                        onDragStart={(e) => onDragStart(e, squareName)}
+                        className={`w-4/5 h-4/5 object-contain transform transition-transform duration-150 hover:scale-110 active:scale-125 ${
+                          square.color === "w"
+                            ? "filter drop-shadow-[0_4px_6px_rgba(255,255,255,0.6)] brightness-110"
+                            : "filter drop-shadow-[0_4px_6px_rgba(0,0,0,0.85)] brightness-95"
+                        }`}
+                      />
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
 
+        {/* Reset Button */}
         <button
           onClick={resetGame}
-          className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
+          className="w-full py-3.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold rounded-2xl transition-all duration-200 shadow-[0_4px_20px_rgba(225,29,72,0.4)] active:scale-95 cursor-pointer tracking-wide"
         >
           Reset Game
         </button>
       </div>
 
-      <div className="w-full lg:w-80 h-[480px] bg-slate-800/40 border border-slate-700 rounded-2xl p-4 flex flex-col shadow-xl">
-        <h2 className="text-slate-300 font-bold text-lg mb-3 pb-2 border-b border-slate-700 flex justify-between items-center">
+      {/* Right Section: Move History */}
+      <div className="w-full lg:w-80 h-[520px] bg-slate-900/80 border border-pink-500/30 rounded-3xl p-5 flex flex-col shadow-xl backdrop-blur-md">
+        <h2 className="text-pink-300 font-bold text-lg mb-4 pb-2 border-b border-pink-500/20 flex justify-between items-center">
           <span>Move History</span>
-          <span className="text-xs text-slate-500 font-normal">
+          <span className="text-xs bg-pink-950/60 text-pink-300 border border-pink-500/30 px-2 py-0.5 rounded-full font-mono">
             {history.length} moves
           </span>
         </h2>
-        <div className="flex-1 overflow-y-auto space-y-1.5 custom-scrollbar pr-1">
+
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
           {renderHistory().length === 0 ? (
             <div className="h-full flex items-center justify-center text-slate-500 text-sm italic">
               No moves played yet
@@ -216,9 +337,9 @@ export default function ChessBoard() {
             renderHistory().map((item) => (
               <div
                 key={item.moveNum}
-                className="flex items-center text-sm py-1.5 px-3 rounded-lg bg-slate-800/60 hover:bg-slate-700/50 transition-colors"
+                className="flex items-center text-sm py-2 px-3.5 rounded-xl bg-slate-950/50 border border-slate-800/80 hover:border-pink-500/30 transition-all duration-150"
               >
-                <span className="w-10 text-slate-500 font-mono text-xs">
+                <span className="w-10 text-pink-400/70 font-mono text-xs font-semibold">
                   {item.moveNum}.
                 </span>
                 <span className="flex-1 text-slate-200 font-medium font-mono">
@@ -232,6 +353,7 @@ export default function ChessBoard() {
           )}
         </div>
       </div>
+
     </div>
   );
 }
