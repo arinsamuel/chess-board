@@ -3,23 +3,23 @@
 import { useState, useEffect, useRef } from "react";
 import { Chess } from "chess.js";
 
-// ♟️ ১০০% ওয়ার্কিং হাই-রেজুলেশন SVG Chess Piece URLs (Fix for missing Knight image)
+// ♟️ Unique Modern & Stylish Chess Piece Assets (Different from Chess.com)
 const PIECE_IMAGES = {
   w: {
-    p: "https://chessboardjs.com/img/chesspieces/wikipedia/wP.png",
-    r: "https://chessboardjs.com/img/chesspieces/wikipedia/wR.png",
-    n: "https://chessboardjs.com/img/chesspieces/wikipedia/wN.png",
-    b: "https://chessboardjs.com/img/chesspieces/wikipedia/wB.png",
-    q: "https://chessboardjs.com/img/chesspieces/wikipedia/wQ.png",
-    k: "https://chessboardjs.com/img/chesspieces/wikipedia/wK.png",
+    p: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wp.png",
+    r: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wr.png",
+    n: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wn.png",
+    b: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wb.png",
+    q: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wq.png",
+    k: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wk.png",
   },
   b: {
-    p: "https://chessboardjs.com/img/chesspieces/wikipedia/bP.png",
-    r: "https://chessboardjs.com/img/chesspieces/wikipedia/bR.png",
-    n: "https://chessboardjs.com/img/chesspieces/wikipedia/bN.png",
-    b: "https://chessboardjs.com/img/chesspieces/wikipedia/bB.png",
-    q: "https://chessboardjs.com/img/chesspieces/wikipedia/bQ.png",
-    k: "https://chessboardjs.com/img/chesspieces/wikipedia/bK.png",
+    p: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bp.png",
+    r: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/br.png",
+    n: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bn.png",
+    b: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bb.png",
+    q: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bq.png",
+    k: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bk.png",
   },
 };
 
@@ -193,11 +193,11 @@ export default function ChessBoard() {
   return (
     <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-8 w-full max-w-5xl px-4 py-8 bg-slate-950 min-h-screen text-slate-100 relative">
       
-      {/* 🏆 CHECKMATE POPUP OVERLAY ANIMATION */}
+      {/* 🏆 CHECKMATE POPUP OVERLAY */}
       {isCheckmate && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-300">
-          <div className="bg-slate-900 border-2 border-pink-500 rounded-3xl p-8 max-w-md w-full text-center shadow-[0_0_50px_rgba(236,72,153,0.5)] flex flex-col items-center gap-4 animate-bounce-short">
-            <div className="text-6xl animate-pulse">👑</div>
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-2 border-pink-500 rounded-3xl p-8 max-w-md w-full text-center shadow-[0_0_50px_rgba(236,72,153,0.5)] flex flex-col items-center gap-4">
+            <div className="text-6xl animate-bounce">👑</div>
             <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-rose-500 tracking-wider">
               CHECKMATE!
             </h2>
@@ -238,9 +238,8 @@ export default function ChessBoard() {
             </span>
           </div>
 
-          {/* CHECK ALERT ANIMATION */}
           {inCheck && (
-            <span className="bg-red-500/20 text-red-400 border border-red-500/80 text-xs px-3.5 py-1 rounded-full font-extrabold animate-ping tracking-wider">
+            <span className="bg-red-500/20 text-red-400 border border-red-500/80 text-xs px-3.5 py-1 rounded-full font-extrabold animate-pulse tracking-wider">
               🚨 CHECK!
             </span>
           )}
@@ -251,7 +250,7 @@ export default function ChessBoard() {
           )}
         </div>
 
-        {/* 🎀 Pink Chessboard with CHECK SHAKE ANIMATION */}
+        {/* 🎀 Pink Chessboard */}
         <div className={`w-[420px] sm:w-[480px] max-w-[90vw] aspect-square rounded-3xl overflow-hidden p-2 bg-slate-900 border-4 transition-all duration-300 ${
           inCheck 
             ? "border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.6)] animate-pulse" 
@@ -273,7 +272,7 @@ export default function ChessBoard() {
                     onDrop={(e) => onDrop(e, squareName)}
                     className={`relative flex items-center justify-center select-none cursor-pointer transition-colors duration-150 ${
                       isKingInCheck
-                        ? "bg-red-600/80 animate-bounce" /* 🚨 King Check Highlight Animation */
+                        ? "bg-red-600/80 animate-pulse"
                         : isDark ? "bg-[#9d174d]" : "bg-[#fbcfe8]"
                     } ${isSelected ? "ring-4 ring-amber-300 ring-inset z-10 bg-pink-400/50" : ""}`}
                   >
@@ -289,17 +288,17 @@ export default function ChessBoard() {
                       </span>
                     )}
 
-                    {/* ♟️ Fixed HD Chess Piece Images */}
+                    {/* ♟️ Stylish Unique Pieces with Custom Glow */}
                     {square && (
                       <img
                         src={PIECE_IMAGES[square.color][square.type]}
                         alt={`${square.color}${square.type}`}
                         draggable={square.color === game.turn() && !game.isGameOver()}
                         onDragStart={(e) => onDragStart(e, squareName)}
-                        className={`w-4/5 h-4/5 object-contain transform transition-transform duration-150 hover:scale-110 active:scale-125 ${
+                        className={`w-[85%] h-[85%] object-contain transform transition-all duration-200 hover:scale-115 active:scale-125 ${
                           square.color === "w"
-                            ? "filter drop-shadow-[0_4px_6px_rgba(255,255,255,0.6)] brightness-110"
-                            : "filter drop-shadow-[0_4px_6px_rgba(0,0,0,0.85)] brightness-95"
+                            ? "filter drop-shadow-[0_4px_8px_rgba(255,255,255,0.75)] brightness-110"
+                            : "filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.9)] brightness-90"
                         }`}
                       />
                     )}
