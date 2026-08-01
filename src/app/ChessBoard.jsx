@@ -6,20 +6,20 @@ import { Chess } from "chess.js";
 // ♟️ Stylish Unique Neo Chess Pieces
 const PIECE_IMAGES = {
   w: {
-    p: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wp.png",
-    r: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wr.png",
-    n: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wn.png",
-    b: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wb.png",
-    q: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wq.png",
-    k: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/wk.png",
+    p: "https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/wp.png",
+    r: "https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/wr.png",
+    n: "https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/wn.png",
+    b: "https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/wb.png",
+    q: "https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/wq.png",
+    k: "https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/wk.png",
   },
   b: {
-    p: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bp.png",
-    r: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/br.png",
-    n: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bn.png",
-    b: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bb.png",
-    q: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bq.png",
-    k: "https://images.chesscomfiles.com/chess-themes/pieces/neo/150/bk.png",
+    p: "https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/bp.png",
+    r: "https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/br.png",
+    n: "https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/bn.png",
+    b: "https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/bb.png",
+    q: "https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/bq.png",
+    k: "https://images.chesscomfiles.com/chess-themes/pieces/3d_staunton/150/bk.png",
   },
 };
 
@@ -28,7 +28,7 @@ export default function ChessBoard() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedSquare, setSelectedSquare] = useState(null);
-  const [possibleMoves, setPossibleMoves] = useState([]); // 🎯 Stores suggested target squares
+  const [possibleMoves, setPossibleMoves] = useState([]);
 
   const gameIdRef = useRef(null);
   const pendingSaveRef = useRef(Promise.resolve());
@@ -39,9 +39,16 @@ export default function ChessBoard() {
         const res = await fetch("/api/game");
         const data = await res.json();
         if (data.success && data.game) {
-          const loadedGame = new Chess(data.game.fen);
+          const loadedGame = new Chess();
+          const savedHistory = data.game.history || [];
+
+          // Replay moves to establish full internal state
+          for (const move of savedHistory) {
+            loadedGame.move(move);
+          }
+
           setGame(loadedGame);
-          setHistory(data.game.history || []);
+          setHistory(savedHistory);
           gameIdRef.current = data.game._id;
         }
       } catch (err) {
@@ -85,7 +92,6 @@ export default function ChessBoard() {
     });
   };
 
-  // Helper function to calculate legal moves for a selected piece
   function highlightPossibleMoves(square) {
     const moves = game.moves({ square: square, verbose: true });
     const targetSquares = moves.map((m) => m.to);
@@ -94,7 +100,12 @@ export default function ChessBoard() {
 
   function handleMove(sourceSquare, targetSquare) {
     try {
-      const gameCopy = new Chess(game.fen());
+      // Create new instance and replay history to keep state consistent
+      const gameCopy = new Chess();
+      for (const m of history) {
+        gameCopy.move(m);
+      }
+
       const move = gameCopy.move({
         from: sourceSquare,
         to: targetSquare,
@@ -108,7 +119,7 @@ export default function ChessBoard() {
       setGame(gameCopy);
       setHistory(newHistory);
       setSelectedSquare(null);
-      setPossibleMoves([]); // Reset suggestions
+      setPossibleMoves([]);
 
       saveGameToBackend(
         gameCopy.fen(),
@@ -127,26 +138,48 @@ export default function ChessBoard() {
     }
   }
 
+  // 🔄 UNDO MOVE (১০০% কার্যকরী লজিক)
+  function undoMove() {
+    if (history.length === 0) return;
+
+    const newHistory = history.slice(0, -1);
+    const newGame = new Chess();
+
+    for (const move of newHistory) {
+      newGame.move(move);
+    }
+
+    setGame(newGame);
+    setHistory(newHistory);
+    setSelectedSquare(null);
+    setPossibleMoves([]);
+
+    saveGameToBackend(
+      newGame.fen(),
+      newHistory,
+      newGame.isGameOver(),
+      newGame.turn(),
+      newGame.inCheck(),
+      newGame.isCheckmate()
+    );
+  }
+
   function handleSquareClick(square) {
     if (game.isGameOver()) return;
 
     const piece = game.get(square);
 
-    // If clicking on own piece whose turn it is
     if (piece && piece.color === game.turn()) {
       if (selectedSquare === square) {
-        // Deselect if clicking same piece twice
         setSelectedSquare(null);
         setPossibleMoves([]);
       } else {
-        // Select piece and show move suggestions
         setSelectedSquare(square);
         highlightPossibleMoves(square);
       }
       return;
     }
 
-    // If a piece is already selected and player clicks a target square
     if (selectedSquare) {
       const moved = handleMove(selectedSquare, square);
       if (!moved) {
@@ -185,9 +218,8 @@ export default function ChessBoard() {
     setHistory([]);
     setSelectedSquare(null);
     setPossibleMoves([]);
-    gameIdRef.current = null;
-    pendingSaveRef.current = Promise.resolve();
 
+    // Keep gameIdRef.current intact to update current document in DB instead of duplicating
     saveGameToBackend(newGame.fen(), [], false, "w", false, false);
   }
 
@@ -217,7 +249,7 @@ export default function ChessBoard() {
   const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
   const inCheck = game.inCheck() && !game.isGameOver();
   const isCheckmate = game.isCheckmate();
-  const currentTurn = game.turn(); // 'w' or 'b'
+  const currentTurn = game.turn();
 
   return (
     <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-8 w-full max-w-5xl px-4 py-8 bg-slate-950 min-h-screen text-slate-100 relative">
@@ -246,7 +278,7 @@ export default function ChessBoard() {
       {/* Left Section: Board & Status */}
       <div className="flex flex-col items-center gap-5">
         
-        {/* 🌟 ENHANCED CLEAR TURN INDICATOR BANNER */}
+        {/* 🌟 CLEAR TURN INDICATOR BANNER */}
         <div className={`w-full flex justify-between items-center px-6 py-3.5 rounded-2xl transition-all duration-300 backdrop-blur-md border ${
           inCheck 
             ? "border-red-500 bg-red-950/40 shadow-[0_0_25px_rgba(239,68,68,0.5)]" 
@@ -255,7 +287,6 @@ export default function ChessBoard() {
             : "border-purple-600/80 bg-purple-950/40 shadow-[0_0_20px_rgba(147,51,234,0.3)]"
         }`}>
           <div className="flex items-center gap-3.5">
-            {/* Glowing Turn Badge */}
             <span
               className={`px-3 py-1 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${
                 currentTurn === "w" 
@@ -310,7 +341,6 @@ export default function ChessBoard() {
                         : isDark ? "bg-[#9d174d]" : "bg-[#fbcfe8]"
                     } ${isSelected ? "ring-4 ring-yellow-400 ring-inset z-10 bg-pink-400/50" : ""}`}
                   >
-                    {/* Rank & File Labels */}
                     {colIndex === 0 && (
                       <span className={`absolute top-0.5 left-1 text-[10px] font-extrabold ${isDark ? "text-pink-200/70" : "text-pink-950/70"}`}>
                         {8 - rowIndex}
@@ -322,20 +352,16 @@ export default function ChessBoard() {
                       </span>
                     )}
 
-                    {/* 🎯 MOVE SUGGESTION DOTS & CAPTURE HIGHLIGHTS */}
                     {isPossibleMove && (
                       <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
                         {square ? (
-                          // Target Square has opponent piece (Capture Ring)
                           <div className="w-full h-full border-4 border-yellow-300/80 rounded-full animate-pulse bg-yellow-400/20" />
                         ) : (
-                          // Empty Target Square (Glowing Dot)
                           <div className="w-4 h-4 sm:w-5 sm:h-5 bg-yellow-300 rounded-full shadow-[0_0_12px_#fde047] opacity-90" />
                         )}
                       </div>
                     )}
 
-                    {/* ♟️ Chess Pieces */}
                     {square && (
                       <img
                         src={PIECE_IMAGES[square.color][square.type]}
@@ -356,13 +382,27 @@ export default function ChessBoard() {
           </div>
         </div>
 
-        {/* Reset Button */}
-        <button
-          onClick={resetGame}
-          className="w-full py-3.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold rounded-2xl transition-all duration-200 shadow-[0_4px_20px_rgba(225,29,72,0.4)] active:scale-95 cursor-pointer tracking-wide"
-        >
-          Reset Game
-        </button>
+        {/* 🎮 Control Action Buttons (Undo & Reset) */}
+        <div className="flex gap-3 w-full">
+          <button
+            onClick={undoMove}
+            disabled={history.length === 0}
+            className={`flex-1 py-3.5 font-bold rounded-2xl transition-all duration-200 flex items-center justify-center gap-2 text-sm tracking-wide ${
+              history.length === 0
+                ? "bg-slate-800/50 text-slate-600 border border-slate-800 cursor-not-allowed"
+                : "bg-slate-900 hover:bg-slate-800 text-pink-400 border border-pink-500/40 shadow-[0_4px_15px_rgba(236,72,153,0.15)] active:scale-95 cursor-pointer"
+            }`}
+          >
+            <span>↩️</span> Undo Move
+          </button>
+
+          <button
+            onClick={resetGame}
+            className="flex-1 py-3.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold rounded-2xl transition-all duration-200 shadow-[0_4px_20px_rgba(225,29,72,0.4)] active:scale-95 cursor-pointer text-sm tracking-wide"
+          >
+            Reset Game
+          </button>
+        </div>
       </div>
 
       {/* Right Section: Move History */}
